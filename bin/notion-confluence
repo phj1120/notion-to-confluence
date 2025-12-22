@@ -1,0 +1,249 @@
+#!/usr/bin/env python3
+"""
+Notion to Confluence Migration CLI Tool
+
+A command-line tool for migrating Notion pages to Confluence with support for:
+- Images, tables, code blocks, headings
+- Column layouts, callouts, toggles
+- Scheduled batch migrations
+- CSV-based page mapping
+"""
+
+import sys
+import os
+import argparse
+from pathlib import Path
+
+# Add parent directory to path to import modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from src.core.logger import setup_logger, get_logger
+
+
+def main():
+    """Main CLI entry point."""
+    parser = argparse.ArgumentParser(
+        description="Notion to Confluence Migration Tool",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run migration for pages marked as should_update=true
+  notion-confluence migrate
+
+  # Initialize configuration
+  notion-confluence init
+
+  # Add a new page to mapping
+  notion-confluence add-page <notion_url> <confluence_url>
+
+  # Show migration status
+  notion-confluence status
+
+For more information, visit: https://github.com/yourusername/notion-to-confluence
+        """
+    )
+
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+
+    # Migrate command
+    migrate_parser = subparsers.add_parser('migrate', help='Run migration')
+    migrate_parser.add_argument('--dry-run', action='store_true', help='Simulate migration without making changes')
+
+    # Init command
+    init_parser = subparsers.add_parser('init', help='Initialize configuration')
+    init_parser.add_argument('--force', action='store_true', help='Overwrite existing configuration')
+
+    # Add page command
+    add_parser = subparsers.add_parser('add-page', help='Add a page to mapping.csv')
+    add_parser.add_argument('notion_url', help='Notion page URL')
+    add_parser.add_argument('confluence_url', nargs='?', default='', help='Confluence page URL (optional)')
+    add_parser.add_argument('--update', action='store_true', help='Mark for immediate update')
+
+    # Status command
+    status_parser = subparsers.add_parser('status', help='Show migration status')
+
+    # Schedule commands
+    schedule_parser = subparsers.add_parser('schedule', help='Manage scheduled migrations')
+    schedule_subparsers = schedule_parser.add_subparsers(dest='schedule_action')
+    schedule_subparsers.add_parser('start', help='Start scheduler')
+    schedule_subparsers.add_parser('stop', help='Stop scheduler')
+    schedule_subparsers.add_parser('status', help='Check scheduler status')
+    schedule_subparsers.add_parser('logs', help='View scheduler logs')
+
+    args = parser.parse_args()
+
+    # Setup logging
+    setup_logger()
+    logger = get_logger()
+
+    # Handle commands
+    if args.command == 'migrate':
+        from migrate import main as migrate_main
+        sys.exit(migrate_main())
+
+    elif args.command == 'init':
+        init_config(force=args.force)
+
+    elif args.command == 'add-page':
+        add_page_to_mapping(args.notion_url, args.confluence_url, args.update)
+
+    elif args.command == 'status':
+        show_status()
+
+    elif args.command == 'schedule':
+        handle_schedule(args.schedule_action)
+
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+def init_config(force=False):
+    """Initialize configuration files interactively."""
+    import shutil
+    from pathlib import Path
+
+    print("🚀 Notion to Confluence Migration - Configuration Setup")
+    print("=" * 60)
+
+    # Check if .env exists
+    env_path = Path('.env')
+    if env_path.exists() and not force:
+        print("\n⚠️  Configuration file (.env) already exists.")
+        response = input("Do you want to overwrite it? (y/N): ").strip().lower()
+        if response != 'y':
+            print("Keeping existing configuration.")
+            return
+
+    print("\n📝 Please provide the following information:\n")
+
+    # Notion configuration
+    print("Notion Configuration:")
+    notion_token = input("  Notion API Token: ").strip()
+
+    # Confluence configuration
+    print("\nConfluence Configuration:")
+    confluence_url = input("  Confluence URL (e.g., https://yourcompany.atlassian.net): ").strip()
+    confluence_username = input("  Confluence Username/Email: ").strip()
+    confluence_token = input("  Confluence API Token: ").strip()
+    confluence_space = input("  Confluence Space Key: ").strip()
+
+    # Write .env file
+    env_content = f"""# Notion Configuration
+NOTION_API_TOKEN={notion_token}
+NOTION_API_VERSION=2022-06-28
+
+# Confluence Configuration
+CONFLUENCE_URL={confluence_url}
+CONFLUENCE_USERNAME={confluence_username}
+CONFLUENCE_API_TOKEN={confluence_token}
+CONFLUENCE_SPACE_KEY={confluence_space}
+
+# API Configuration
+API_TIMEOUT=30
+API_MAX_RETRIES=3
+
+# File Paths
+MAPPING_CSV=mapping.csv
+HISTORY_CSV=history.csv
+"""
+
+    with open('.env', 'w') as f:
+        f.write(env_content)
+
+    print("\n✅ Configuration file created: .env")
+
+    # Create mapping.csv if it doesn't exist
+    mapping_path = Path('mapping.csv')
+    if not mapping_path.exists():
+        with open('mapping.csv', 'w') as f:
+            f.write("id,notion_url,confluence_url,should_update,last_updated\n")
+        print("✅ Created mapping.csv")
+
+    print("\n🎉 Setup complete! You can now:")
+    print("  1. Add pages to mapping.csv")
+    print("  2. Run: notion-confluence migrate")
+    print("  3. Or use: notion-confluence add-page <notion_url>")
+
+
+def add_page_to_mapping(notion_url, confluence_url='', update=False):
+    """Add a page to mapping.csv."""
+    from src.utils.csv_manager import MappingManager
+
+    manager = MappingManager()
+    mappings = manager.read_mappings()
+
+    # Generate new ID
+    max_id = max([int(m['id']) for m in mappings], default=0)
+    new_id = max_id + 1
+
+    new_mapping = {
+        'id': str(new_id),
+        'notion_url': notion_url,
+        'confluence_url': confluence_url,
+        'should_update': 'true' if update else 'false',
+        'last_updated': ''
+    }
+
+    mappings.append(new_mapping)
+    manager._write_mappings(mappings)
+
+    print(f"✅ Added page to mapping.csv (ID: {new_id})")
+    if update:
+        print("   ⚡ Marked for update - will be migrated on next run")
+    else:
+        print("   ℹ️  Not marked for update - set should_update=true to migrate")
+
+
+def show_status():
+    """Show migration status."""
+    from src.utils.csv_manager import MappingManager, HistoryManager
+
+    mapping_manager = MappingManager()
+    history_manager = HistoryManager()
+
+    mappings = mapping_manager.read_mappings()
+    to_update = mapping_manager.get_pages_to_update()
+    history = history_manager.get_history()
+
+    print("\n📊 Migration Status")
+    print("=" * 60)
+    print(f"Total pages in mapping: {len(mappings)}")
+    print(f"Pages marked for update: {len(to_update)}")
+    print(f"Total migration attempts: {len(history)}")
+
+    # Recent successes and failures
+    recent_success = [h for h in history if h['success'] == 'success'][-5:]
+    recent_failure = [h for h in history if h['success'] == 'failure'][-5:]
+
+    if recent_success:
+        print(f"\nRecent successes: {len(recent_success)}")
+        for record in recent_success:
+            print(f"  - Page {record['id']} at {record['timestamp']}")
+
+    if recent_failure:
+        print(f"\nRecent failures: {len(recent_failure)}")
+        for record in recent_failure:
+            print(f"  - Page {record['id']} at {record['timestamp']}")
+
+
+def handle_schedule(action):
+    """Handle scheduler commands."""
+    import subprocess
+
+    script_path = Path(__file__).parent.parent / 'scheduler_control.sh'
+
+    if not script_path.exists():
+        print("❌ Scheduler script not found. Run on macOS/Linux only.")
+        sys.exit(1)
+
+    if action:
+        result = subprocess.run([str(script_path), action])
+        sys.exit(result.returncode)
+    else:
+        print("Usage: notion-confluence schedule {start|stop|status|logs}")
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,10 @@
+# Core dependencies
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# Note: All other functionality uses Python standard library
+# - logging (for structured logging)
+# - dataclasses (for configuration)
+# - pathlib (for file paths)
+# - csv (for CSV management)
+# - typing (for type hints)

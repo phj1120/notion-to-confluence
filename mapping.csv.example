@@ -1,0 +1,3 @@
+id,notion_url,confluence_url,should_update,last_updated
+1,your_notion_url1,your_confluence_url1,false,
+2,your_notion_url2,your_confluence_url2,true,
