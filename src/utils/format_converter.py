@@ -34,6 +34,7 @@ class NotionToConfluenceConverter:
         "image": "convert_image",
         "column_list": "convert_column_list",
         "column": "convert_column",
+        "table_of_contents": "convert_table_of_contents",
     }
 
     def __init__(self, confluence_client=None, page_id=None):
@@ -328,6 +329,10 @@ class NotionToConfluenceConverter:
         if block.get("children"):
             return self.convert_blocks(block["children"])
         return ""
+
+    def convert_table_of_contents(self, block: Dict[str, Any]) -> str:
+        """Convert table_of_contents block to Confluence TOC macro."""
+        return '<ac:structured-macro ac:name="toc" />'
 
     def extract_rich_text(self, rich_text_array: List[Dict[str, Any]], preserve_formatting: bool = True) -> str:
         """Extract and format rich text from Notion.
