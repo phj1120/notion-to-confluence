@@ -6,8 +6,13 @@ from Notion to Confluence, and tracks the migration history.
 """
 
 import sys
-from typing import Tuple, Optional
+import os
+from pathlib import Path
+from typing import Optional
 from dataclasses import dataclass
+
+# Ensure working directory is the script's directory regardless of how it's invoked
+os.chdir(Path(__file__).parent)
 
 from src.core.config import AppConfig
 from src.clients.notion_client import NotionClient
@@ -205,7 +210,7 @@ def main() -> int:
         Exit code
     """
     # Setup logging
-    setup_logger()
+    setup_logger(log_file="migration.log")
     logger = get_logger()
 
     try:

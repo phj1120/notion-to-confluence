@@ -91,7 +91,7 @@ crontab -e
 명령 프롬프트(cmd)를 관리자 권한으로 열고 실행하세요 (매일 오전 9시 ~ 오후 6시, 1시간마다 실행):
 
 ```cmd
-schtasks /create /tn "NotionToConfluence" /tr "\"{C:\path\to\notion-to-confluence}\.venv\Scripts\python.exe\" \"{C:\path\to\notion-to-confluence}\migrate.py\"" /sc hourly /mo 1 /st 09:00 /et 18:00 /k /f
+schtasks /create /tn "NotionToConfluence" /tr "\"C:\Dev\git\notion-to-confluence\.venv\Scripts\pythonw.exe\" \"C:\Dev\git\notion-to-confluence\migrate.py\"" /sc hourly /mo 1 /st 09:00 /et 18:00 /k /f
 ```
 
 등록된 작업은 아래 명령으로 확인하거나 삭제할 수 있습니다:
