@@ -44,69 +44,6 @@ class ConfluenceClient:
             )
 
     @retry_with_exponential_backoff(max_retries=3, backoff_factor=2.0)
-    def create_page(
-        self,
-        title: str,
-        content: str,
-        space_key: str,
-        parent_id: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Create a new page in Confluence.
-
-        Args:
-            title: Page title
-            content: Page content in Confluence storage format
-            space_key: Confluence space key where page will be created
-            parent_id: Optional parent page ID
-
-        Returns:
-            Created page data dictionary
-
-        Raises:
-            ValidationError: If title is invalid
-            ConfluenceAPIError: If API request fails
-        """
-        self._validate_title(title)
-
-        url = f"{self.config.url}/wiki/rest/api/content"
-        logger.info(f"Creating Confluence page: {title} in space {space_key}")
-
-        page_data = {
-            "type": "page",
-            "title": title,
-            "space": {"key": space_key},
-            "body": {
-                "storage": {
-                    "value": content,
-                    "representation": "storage"
-                }
-            }
-        }
-
-        if parent_id:
-            page_data["ancestors"] = [{"id": parent_id}]
-            logger.debug(f"Setting parent page ID: {parent_id}")
-
-        try:
-            response = requests.post(
-                url,
-                json=page_data,
-                auth=self.auth,
-                timeout=self.api_config.timeout,
-            )
-
-            if not response.ok:
-                handle_api_error(response, "Confluence API")
-
-            result = response.json()
-            logger.info(f"Successfully created page: {result.get('id')}")
-            return result
-
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to create page '{title}': {e}")
-            raise ConfluenceAPIError(f"Failed to create page: {e}")
-
-    @retry_with_exponential_backoff(max_retries=3, backoff_factor=2.0)
     def update_page(
         self,
         page_id: str,
@@ -205,54 +142,6 @@ class ConfluenceClient:
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to fetch page '{page_id}': {e}")
             raise ConfluenceAPIError(f"Failed to fetch page: {e}")
-
-    @retry_with_exponential_backoff(max_retries=3, backoff_factor=2.0)
-    def get_page_by_title(self, title: str, space_key: str) -> Optional[Dict[str, Any]]:
-        """Find a page by title in the space.
-
-        Args:
-            title: Page title to search for
-            space_key: Confluence space key to search in
-
-        Returns:
-            Page data dictionary if found, None otherwise
-
-        Raises:
-            ConfluenceAPIError: If API request fails
-        """
-        url = f"{self.config.url}/wiki/rest/api/content"
-        params = {
-            "spaceKey": space_key,
-            "title": title,
-            "expand": "version"
-        }
-
-        logger.debug(f"Searching for page with title: {title} in space {space_key}")
-
-        try:
-            response = requests.get(
-                url,
-                params=params,
-                auth=self.auth,
-                timeout=self.api_config.timeout,
-            )
-
-            if not response.ok:
-                handle_api_error(response, "Confluence API")
-
-            data = response.json()
-            results = data.get("results", [])
-
-            if results:
-                logger.debug(f"Found existing page: {results[0].get('id')}")
-                return results[0]
-            else:
-                logger.debug("No existing page found")
-                return None
-
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to search for page '{title}': {e}")
-            raise ConfluenceAPIError(f"Failed to search for page: {e}")
 
     @retry_with_exponential_backoff(max_retries=3, backoff_factor=2.0)
     def upload_attachment(
